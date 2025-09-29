@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR Scan Tracker - Firebase</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+</head>
+<body class="bg-gray-50">
+    <div class="min-h-screen">
+        <div class="bg-white shadow-sm border-b">
+            <div class="max-w-6xl mx-auto px-4 py-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900">🎯 QR Scan Tracker</h1>
+                        <p class="text-sm text-gray-600">Real-time tracking dengan Firebase</p>
+                        <p class="text-xs text-green-600 mt-1" id="statusText">⚠️ Firebase belum disetup</p>
+                    </div>
+                    <button onclick="showCreateModal()" id="createBtn" disabled class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed">
+                        + Buat QR Baru
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="max-w-6xl mx-auto px-4 py-8">
+            <div id="setupPanel" class="bg-white border-2 border-blue-500 rounded-xl p-6 mb-8">
+                <h2 class="text-xl font-bold text-gray-900 mb-4">🔧 Setup Firebase (5 Menit)</h2>
+                
+                <div class="space-y-3 text-sm mb-4">
+                    <div class="flex gap-2">
+                        <span class="font-bold text-blue-600">1.</span>
+                        <div>
+                            <p><strong>Buka Firebase Console:</strong> <a href="https://console.firebase.google.com/" target="_blank" class="text-blue-600 underline">console.firebase.google.com</a></p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <span class="font-bold text-blue-600">2.</span>
+                        <div>
+                            <p><strong>Buat Project:</strong> Klik "Add project" → Nama project → Disable Analytics → Create</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <span class="font-bold text-blue-600">3.</span>
+                        <div>
+                            <p><strong>Setup Database:</strong> Build → Realtime Database → Create Database → Singapore → Test mode → Enable</p>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <span class="font-bold text-blue-600">4.</span>
+                        <div>
+                            <p><strong>Ambil Config:</strong> ⚙️ Settings → Project settings → Scroll ke bawah → Klik icon Web </> → Copy config</p>
+                        </div>
+                    </div>
+                </div>
+
+                <label class="block text-sm font-medium text-gray-700 mb-2">📋 Paste Firebase Config di sini:</label>
+                <textarea id="firebaseConfig" placeholder='Paste config JSON di sini, contoh:
+{
+   apiKey: "AIzaSyCqKx7W5DLGBfcKBvHPD2ZX499npPMCUjE",
+  authDomain: "qr-track-9e517.firebaseapp.com",
+  databaseURL: "https://qr-track-9e517-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "qr-track-9e517",
+  storageBucket: "qr-track-9e517.firebasestorage.app",
+  messagingSenderId: "692416595833",
+  appId: "1:692416595833:web:e75f2b27c01f94dbde51a8",
+  measurementId: "G-TB4N1DPMYQ"
+}' class="w-full h-40 px-4 py-3 border-2 border-gray-300 rounded-lg font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                <button onclick="initFirebase()" class="mt-3 w-full bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 font-medium text-lg">
+                    ✓ Aktifkan Firebase Database
+                </button>
+            </div>
+
+            <div class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl shadow-lg p-8 mb-8 text-white">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-blue-100 mb-2">Total Scan Real-time</p>
+                        <p class="text-5xl font-bold" id="totalScans">0</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-blue-100 mb-2">QR Aktif</p>
+                        <p class="text-5xl font-bold" id="totalQR">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="qrList" class="space-y-6"></div>
+
+            <div id="emptyState" class="text-center py-16 hidden">
+                <div class="text-6xl mb-4">📱</div>
+                <h3 class="text-xl font-semibold text-gray-900 mb-2">Belum ada QR Code</h3>
+                <p class="text-gray-600 mb-6">Buat QR code pertama untuk mulai tracking</p>
+                <button onclick="showCreateModal()" class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-medium">
+                    Buat QR Code
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="createModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+            <h2 class="text-2xl font-bold text-gray-900 mb-6">Buat QR Code Baru</h2>
+            <div class="space-y-4 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Nama QR Code</label>
+                    <input type="text" id="qrName" placeholder="Contoh: Menu Restoran" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">URL Tujuan</label>
+                    <input type="url" id="qrUrl" placeholder="https://example.com" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="hideCreateModal()" class="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium">Batal</button>
+                <button onclick="createQR()" class="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">Buat QR</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="viewModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 max-h-screen overflow-y-auto">
+            <div class="flex justify-between items-start mb-6">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-900" id="modalTitle"></h2>
+                    <p class="text-sm text-gray-600" id="modalUrl"></p>
+                </div>
+                <button onclick="hideViewModal()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="flex gap-6 mb-6">
+                <div class="flex-shrink-0">
+                    <div id="modalQR" class="w-48 h-48 bg-gray-100 rounded-lg border-2 border-gray-200"></div>
+                    <button onclick="downloadCurrentQR()" class="w-full mt-2 text-sm text-blue-600 hover:text-blue-700 font-medium">Download QR</button>
+                </div>
+                <div class="flex-1">
+                    <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-6 border border-green-200 mb-4">
+                        <p class="text-sm text-gray-600 mb-1">Total Scan</p>
+                        <p class="text-4xl font-bold text-gray-900" id="modalScans">0</p>
+                    </div>
+                    <button onclick="copyTrackingLink()" class="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium mb-2">Copy Link</button>
+                    <button onclick="openTrackingLink()" class="w-full px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium">Test Scan</button>
+                </div>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-4">
+                <h3 class="font-semibold text-gray-900 mb-2">History Scan (20 terakhir)</h3>
+                <div id="scanHistory" class="space-y-2 max-h-60 overflow-y-auto"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        var db = null;
+        var isReady = false;
+        var qrData = [];
+        var currentId = null;
+
+        function initFirebase() {
+            var configText = document.getElementById('firebaseConfig').value.trim();
+            if (!configText) {
+                alert('Mohon paste Firebase config!');
+                return;
+            }
+            try {
+                var config = JSON.parse(configText);
+                if (!config.apiKey || !config.databaseURL) {
+                    alert('Config tidak lengkap!');
+                    return;
+                }
+                firebase.initializeApp(config);
+                db = firebase.database();
+                isReady = true;
+                localStorage.setItem('firebaseConfig', configText);
+                document.getElementById('setupPanel').style.display = 'none';
+                document.getElementById('createBtn').disabled = false;
+                document.getElementById('statusText').textContent = '✅ Firebase aktif';
+                document.getElementById('statusText').className = 'text-xs text-green-600 mt-1';
+                alert('✅ Firebase berhasil diaktifkan!');
+                loadData();
+            } catch (e) {
+                alert('Error: ' + e.message);
+            }
+        }
+
+        function loadData() {
+            if (!isReady) return;
+            db.ref('qrcodes').on('value', function(snapshot) {
+                var data = snapshot.val();
+                qrData = [];
+                if (data) {
+                    for (var key in data) {
+                        qrData.push(data[key]);
+                    }
+                }
+                render();
+                updateStats();
+            });
+        }
+
+        function generateId() {
+            return 'qr_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        function showCreateModal() {
+            if (!isReady) {
+                alert('Setup Firebase dulu!');
+                return;
+            }
+            document.getElementById('createModal').classList.remove('hidden');
+            document.getElementById('qrName').value = '';
+            document.getElementById('qrUrl').value = '';
+        }
+
+        function hideCreateModal() {
+            document.getElementById('createModal').classList.add('hidden');
+        }
+
+        function createQR() {
+            var name = document.getElementById('qrName').value.trim();
+            var url = document.getElementById('qrUrl').value.trim();
+            if (!name || !url) {
+                alert('Isi semua field!');
+                return;
+            }
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                alert('URL harus dimulai dengan http:// atau https://');
+                return;
+            }
+            var id = generateId();
+            var trackingUrl = window.location.origin + window.location.pathname + '#track=' + id;
+            var newQR = {
+                id: id,
+                name: name,
+                url: url,
+                trackingUrl: trackingUrl,
+                scans: 0,
+                createdAt: new Date().toISOString(),
+                scanHistory: []
+            };
+            db.ref('qrcodes/' + id).set(newQR).then(function() {
+                hideCreateModal();
+                alert('✅ QR Code berhasil dibuat!');
+            });
+        }
+
+        function render() {
+            var container = document.getElementById('qrList');
+            var emptyState = document.getElementById('emptyState');
+            if (qrData.length === 0) {
+                container.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+            emptyState.classList.add('hidden');
+            var html = '';
+            for (var i = 0; i < qrData.length; i++) {
+                var qr = qrData[i];
+                html += '<div class="bg-white rounded-xl shadow-md p-6"><div class="flex gap-6">';
+                html += '<div class="flex-shrink-0"><div id="qr-' + qr.id + '" class="w-32 h-32 bg-gray-100 rounded-lg border-2 border-gray-200"></div></div>';
+                html += '<div class="flex-1"><h3 class="text-xl font-bold text-gray-900 mb-2">' + qr.name + '</h3>';
+                html += '<p class="text-sm text-gray-600 mb-3"><span class="font-medium">Tujuan:</span> <a href="' + qr.url + '" target="_blank" class="text-blue-600 hover:underline">' + qr.url + '</a></p>';
+                html += '<div class="flex items-center gap-4 mb-4"><div class="bg-green-50 border border-green-200 rounded-lg px-4 py-2">';
+                html += '<p class="text-xs text-gray-600">Total Scan</p><p class="text-2xl font-bold text-green-600">' + qr.scans + '</p></div>';
+                html += '<div class="text-xs text-gray-500">Dibuat: ' + new Date(qr.createdAt).toLocaleDateString('id-ID') + '</div></div>';
+                html += '<div class="flex gap-2">';
+                html += '<button onclick="viewDetails(\'' + qr.id + '\')" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium">Lihat Detail</button>';
+                html += '<button onclick="deleteQR(\'' + qr.id + '\')" class="px-4 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 text-sm font-medium">Hapus</button>';
+                html += '</div></div></div></div>';
+            }
+            container.innerHTML = html;
+            setTimeout(function() {
+                for (var j = 0; j < qrData.length; j++) {
+                    var qr = qrData[j];
+                    var el = document.getElementById('qr-' + qr.id);
+                    if (el && el.innerHTML === '') {
+                        new QRCode(el, {text: qr.trackingUrl, width: 128, height: 128});
+                    }
+                }
+            }, 100);
+        }
+
+        function viewDetails(id) {
+            currentId = id;
+            var qr = null;
+            for (var i = 0; i < qrData.length; i++) {
+                if (qrData[i].id === id) {
+                    qr = qrData[i];
+                    break;
+                }
+            }
+            if (!qr) return;
+            document.getElementById('modalTitle').textContent = qr.name;
+            document.getElementById('modalUrl').textContent = qr.url;
+            document.getElementById('modalScans').textContent = qr.scans;
+            var qrContainer = document.getElementById('modalQR');
+            qrContainer.innerHTML = '';
+            new QRCode(qrContainer, {text: qr.trackingUrl, width: 192, height: 192});
+            var historyContainer = document.getElementById('scanHistory');
+            if (!qr.scanHistory || qr.scanHistory.length === 0) {
+                historyContainer.innerHTML = '<p class="text-gray-500 text-sm text-center py-4">Belum ada scan</p>';
+            } else {
+                var historyHtml = '';
+                var history = qr.scanHistory.slice(-20).reverse();
+                for (var i = 0; i < history.length; i++) {
+                    var scan = history[i];
+                    historyHtml += '<div class="flex justify-between items-center bg-white p-3 rounded border border-gray-200">';
+                    historyHtml += '<span class="text-sm text-gray-700">Scan #' + scan.scanNumber + '</span>';
+                    historyHtml += '<span class="text-xs text-gray-500">' + new Date(scan.timestamp).toLocaleString('id-ID') + '</span></div>';
+                }
+                historyContainer.innerHTML = historyHtml;
+            }
+            db.ref('qrcodes/' + id + '/scans').on('value', function(snapshot) {
+                document.getElementById('modalScans').textContent = snapshot.val() || 0;
+            });
+            document.getElementById('viewModal').classList.remove('hidden');
+        }
+
+        function hideViewModal() {
+            document.getElementById('viewModal').classList.add('hidden');
+            if (currentId) {
+                db.ref('qrcodes/' + currentId + '/scans').off();
+            }
+            currentId = null;
+        }
+
+        function copyTrackingLink() {
+            var qr = null;
+            for (var i = 0; i < qrData.length; i++) {
+                if (qrData[i].id === currentId) {
+                    qr = qrData[i];
+                    break;
+                }
+            }
+            if (!qr) return;
+            navigator.clipboard.writeText(qr.trackingUrl).then(function() {
+                alert('✅ Link berhasil di-copy!');
+            });
+        }
+
+        function openTrackingLink() {
+            var qr = null;
+            for (var i = 0; i < qrData.length; i++) {
+                if (qrData[i].id === currentId) {
+                    qr = qrData[i];
+                    break;
+                }
+            }
+            if (!qr) return;
+            window.open(qr.trackingUrl, '_blank');
+        }
+
+        function downloadCurrentQR() {
+            var qr = null;
+            for (var i = 0; i < qrData.length; i++) {
+                if (qrData[i].id === currentId) {
+                    qr = qrData[i];
+                    break;
+                }
+            }
+            if (!qr) return;
+            var canvas = document.querySelector('#modalQR canvas');
+            if (canvas) {
+                var url = canvas.toDataURL('image/png');
+                var link = document.createElement('a');
+                link.download = 'QR-' + qr.name + '.png';
+                link.href = url;
+                link.click();
+            }
+        }
+
+        function deleteQR(id) {
+            if (confirm('Yakin hapus QR code ini?')) {
+                db.ref('qrcodes/' + id).remove();
+            }
+        }
+
+        function updateStats() {
+            var total = 0;
+            for (var i = 0; i < qrData.length; i++) {
+                total += qrData[i].scans || 0;
+            }
+            document.getElementById('totalScans').textContent = total;
+            document.getElementById('totalQR').textContent = qrData.length;
+        }
+
+        window.addEventListener('load', function() {
+            var saved = localStorage.getItem('firebaseConfig');
+            if (saved) {
+                document.getElementById('firebaseConfig').value = saved;
+                initFirebase();
+            }
+            var hash = window.location.hash;
+            if (hash.startsWith('#track=')) {
+                var trackId = hash.substring(7);
+                setTimeout(function() {
+                    processTrack(trackId);
+                }, 2000);
+            }
+        });
+
+        function processTrack(trackId) {
+            if (!db) return;
+            db.ref('qrcodes/' + trackId).once('value').then(function(snapshot) {
+                var qr = snapshot.val();
+                if (qr) {
+                    var newScans = (qr.scans || 0) + 1;
+                    var scanHistory = qr.scanHistory || [];
+                    scanHistory.push({
+                        scanNumber: newScans,
+                        timestamp: new Date().toISOString()
+                    });
+                    db.ref('qrcodes/' + trackId).update({
+                        scans: newScans,
+                        scanHistory: scanHistory
+                    }).then(function() {
+                        setTimeout(function() {
+                            window.location.href = qr.url;
+                        }, 500);
+                    });
+                } else {
+                    alert('QR tidak ditemukan!');
+                    window.location.hash = '';
+                }
+            });
+        }
+    </script>
+</body>
+</html>
