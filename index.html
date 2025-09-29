@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QR Scan Tracker - Firebase</title>
+    <title>QR Scan Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -17,9 +17,9 @@
                     <div>
                         <h1 class="text-2xl font-bold text-gray-900">🎯 QR Scan Tracker</h1>
                         <p class="text-sm text-gray-600">Real-time tracking dengan Firebase</p>
-                        <p class="text-xs text-green-600 mt-1" id="statusText">⚠️ Firebase belum disetup</p>
+                        <p class="text-xs text-green-600 mt-1" id="statusText">✅ Firebase aktif</p>
                     </div>
-                    <button onclick="showCreateModal()" id="createBtn" disabled class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium disabled:bg-gray-400 disabled:cursor-not-allowed">
+                    <button onclick="showCreateModal()" id="createBtn" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium">
                         + Buat QR Baru
                     </button>
                 </div>
@@ -27,52 +27,6 @@
         </div>
 
         <div class="max-w-6xl mx-auto px-4 py-8">
-            <div id="setupPanel" class="bg-white border-2 border-blue-500 rounded-xl p-6 mb-8">
-                <h2 class="text-xl font-bold text-gray-900 mb-4">🔧 Setup Firebase (5 Menit)</h2>
-                
-                <div class="space-y-3 text-sm mb-4">
-                    <div class="flex gap-2">
-                        <span class="font-bold text-blue-600">1.</span>
-                        <div>
-                            <p><strong>Buka Firebase Console:</strong> <a href="https://console.firebase.google.com/" target="_blank" class="text-blue-600 underline">console.firebase.google.com</a></p>
-                        </div>
-                    </div>
-                    <div class="flex gap-2">
-                        <span class="font-bold text-blue-600">2.</span>
-                        <div>
-                            <p><strong>Buat Project:</strong> Klik "Add project" → Nama project → Disable Analytics → Create</p>
-                        </div>
-                    </div>
-                    <div class="flex gap-2">
-                        <span class="font-bold text-blue-600">3.</span>
-                        <div>
-                            <p><strong>Setup Database:</strong> Build → Realtime Database → Create Database → Singapore → Test mode → Enable</p>
-                        </div>
-                    </div>
-                    <div class="flex gap-2">
-                        <span class="font-bold text-blue-600">4.</span>
-                        <div>
-                            <p><strong>Ambil Config:</strong> ⚙️ Settings → Project settings → Scroll ke bawah → Klik icon Web </> → Copy config</p>
-                        </div>
-                    </div>
-                </div>
-
-                <label class="block text-sm font-medium text-gray-700 mb-2">📋 Paste Firebase Config di sini:</label>
-                <textarea id="firebaseConfig" placeholder='Paste config JSON di sini, contoh:
-{
-  "apiKey": "AIzaSy...",
-  "authDomain": "...",
-  "databaseURL": "https://....firebaseio.com",
-  "projectId": "...",
-  "storageBucket": "...",
-  "messagingSenderId": "...",
-  "appId": "..."
-}' class="w-full h-40 px-4 py-3 border-2 border-gray-300 rounded-lg font-mono text-xs focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
-                <button onclick="initFirebase()" class="mt-3 w-full bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 font-medium text-lg">
-                    ✓ Aktifkan Firebase Database
-                </button>
-            </div>
-
             <div class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl shadow-lg p-8 mb-8 text-white">
                 <div class="flex items-center justify-between">
                     <div>
@@ -152,40 +106,62 @@
     </div>
 
     <script>
-        var db = null;
-        var isReady = false;
+        // Firebase Config - Already embedded
+        var firebaseConfig = {
+            apiKey: "AIzaSyCqKx7N5DLGBfcKBvHPD2ZX499npPMCUjE",
+            authDomain: "qr-track-9e517.firebaseapp.com",
+            databaseURL: "https://qr-track-9e517-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "qr-track-9e517",
+            storageBucket: "qr-track-9e517.firebasestorage.app",
+            messagingSenderId: "692416595833",
+            appId: "1:692416595833:web:e75f2b27c01f94dbde51a8"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        var db = firebase.database();
+        var isReady = true;
         var qrData = [];
         var currentId = null;
 
-        function initFirebase() {
-            var configText = document.getElementById('firebaseConfig').value.trim();
-            if (!configText) {
-                alert('Mohon paste Firebase config!');
-                return;
-            }
-            try {
-                var config = JSON.parse(configText);
-                if (!config.apiKey || !config.databaseURL) {
-                    alert('Config tidak lengkap!');
-                    return;
+        // Check if this is a tracking link
+        var hash = window.location.hash;
+        if (hash.startsWith('#track=')) {
+            var trackId = hash.substring(7);
+            document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;flex-direction:column;background:#f9fafb;"><div style="font-size:48px;margin-bottom:20px;">🔄</div><div style="font-size:24px;font-weight:600;color:#333;margin-bottom:10px;">Redirecting...</div><div style="color:#666;">Mohon tunggu sebentar</div></div>';
+            
+            db.ref('qrcodes/' + trackId).once('value').then(function(snapshot) {
+                var qr = snapshot.val();
+                if (qr) {
+                    var newScans = (qr.scans || 0) + 1;
+                    var scanHistory = qr.scanHistory || [];
+                    scanHistory.push({
+                        scanNumber: newScans,
+                        timestamp: new Date().toISOString(),
+                        userAgent: navigator.userAgent.substring(0, 100)
+                    });
+                    
+                    db.ref('qrcodes/' + trackId).update({
+                        scans: newScans,
+                        scanHistory: scanHistory,
+                        lastScan: new Date().toISOString()
+                    });
+                    
+                    setTimeout(function() {
+                        window.location.replace(qr.url);
+                    }, 300);
+                } else {
+                    document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;flex-direction:column;"><div style="font-size:48px;margin-bottom:20px;">❌</div><div style="font-size:24px;font-weight:600;color:#333;">QR Code tidak ditemukan!</div></div>';
                 }
-                firebase.initializeApp(config);
-                db = firebase.database();
-                isReady = true;
-                localStorage.setItem('firebaseConfig', configText);
-                document.getElementById('setupPanel').style.display = 'none';
-                document.getElementById('createBtn').disabled = false;
-                document.getElementById('statusText').textContent = '✅ Firebase aktif';
-                document.getElementById('statusText').className = 'text-xs text-green-600 mt-1';
-                alert('✅ Firebase berhasil diaktifkan!');
-                loadData();
-            } catch (e) {
-                alert('Error: ' + e.message);
-            }
+            }).catch(function(error) {
+                document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;flex-direction:column;"><div style="font-size:48px;margin-bottom:20px;">⚠️</div><div style="font-size:24px;font-weight:600;color:#333;">Error: ' + error.message + '</div></div>';
+            });
+        } else {
+            // Normal dashboard view
+            loadData();
         }
 
         function loadData() {
-            if (!isReady) return;
             db.ref('qrcodes').on('value', function(snapshot) {
                 var data = snapshot.val();
                 qrData = [];
@@ -204,10 +180,6 @@
         }
 
         function showCreateModal() {
-            if (!isReady) {
-                alert('Setup Firebase dulu!');
-                return;
-            }
             document.getElementById('createModal').classList.remove('hidden');
             document.getElementById('qrName').value = '';
             document.getElementById('qrUrl').value = '';
@@ -383,56 +355,6 @@
             }
             document.getElementById('totalScans').textContent = total;
             document.getElementById('totalQR').textContent = qrData.length;
-        }
-
-        window.addEventListener('load', function() {
-            var saved = localStorage.getItem('firebaseConfig');
-            if (saved) {
-                document.getElementById('firebaseConfig').value = saved;
-                initFirebase();
-            }
-            var hash = window.location.hash;
-            if (hash.startsWith('#track=')) {
-                var trackId = hash.substring(7);
-                setTimeout(function() {
-                    processTrack(trackId);
-                }, 2000);
-            }
-        });
-
-        function processTrack(trackId) {
-            if (!db) {
-                setTimeout(function() {
-                    processTrack(trackId);
-                }, 1000);
-                return;
-            }
-            
-            document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;flex-direction:column;"><div style="font-size:24px;margin-bottom:20px;">🔄 Redirecting...</div><div style="color:#666;">Mohon tunggu sebentar</div></div>';
-            
-            db.ref('qrcodes/' + trackId).once('value').then(function(snapshot) {
-                var qr = snapshot.val();
-                if (qr) {
-                    var newScans = (qr.scans || 0) + 1;
-                    var scanHistory = qr.scanHistory || [];
-                    scanHistory.push({
-                        scanNumber: newScans,
-                        timestamp: new Date().toISOString()
-                    });
-                    db.ref('qrcodes/' + trackId).update({
-                        scans: newScans,
-                        scanHistory: scanHistory
-                    });
-                    
-                    window.location.replace(qr.url);
-                } else {
-                    alert('QR tidak ditemukan!');
-                    window.location.hash = '';
-                }
-            }).catch(function(error) {
-                console.error(error);
-                alert('Error: ' + error.message);
-            });
         }
     </script>
 </body>
