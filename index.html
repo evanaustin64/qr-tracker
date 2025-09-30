@@ -74,6 +74,29 @@
         </div>
     </div>
 
+    <div id="deleteModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 transform transition-all">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                    </svg>
+                </div>
+                <h3 class="text-xl font-bold text-gray-900 mb-2">Hapus QR Code?</h3>
+                <p class="text-gray-600 text-sm" id="deleteQRName"></p>
+                <p class="text-red-600 text-sm font-medium mt-2">Data scan akan hilang permanen!</p>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="hideDeleteModal()" class="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition">
+                    Batal
+                </button>
+                <button onclick="confirmDelete()" class="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition">
+                    Ya, Hapus
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div id="viewModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full p-6 max-h-screen overflow-y-auto">
             <div class="flex justify-between items-start mb-6">
@@ -159,6 +182,7 @@
         var qrData = [];
         var currentId = null;
         var chartInstance = null;
+        var deleteTargetId = null;
 
         var hash = window.location.hash;
         if (hash.startsWith('#track=')) {
@@ -184,7 +208,7 @@
                     
                     setTimeout(function() {
                         window.location.replace(qr.url);
-                    }, 200);
+                    }, 300);
                 } else {
                     document.body.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;flex-direction:column;"><div style="font-size:48px;margin-bottom:20px;">❌</div><div style="font-size:24px;font-weight:600;color:#333;">QR Code tidak ditemukan!</div></div>';
                 }
@@ -279,7 +303,15 @@
                     var qr = qrData[j];
                     var el = document.getElementById('qr-' + qr.id);
                     if (el && el.innerHTML === '') {
-                        new QRCode(el, {text: qr.trackingUrl, width: 128, height: 128});
+                        el.style.padding = '4px';
+                        new QRCode(el, {
+                            text: qr.trackingUrl, 
+                            width: 120, 
+                            height: 120,
+                            colorDark: "#000000",
+                            colorLight: "#ffffff",
+                            correctLevel: QRCode.CorrectLevel.H
+                        });
                     }
                 }
             }, 100);
@@ -302,7 +334,15 @@
             
             var qrContainer = document.getElementById('modalQR');
             qrContainer.innerHTML = '';
-            new QRCode(qrContainer, {text: qr.trackingUrl, width: 256, height: 256});
+            qrContainer.style.padding = '20px';
+            new QRCode(qrContainer, {
+                text: qr.trackingUrl, 
+                width: 220, 
+                height: 220,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
             
             var historyContainer = document.getElementById('scanHistory');
             if (!qr.scanHistory || qr.scanHistory.length === 0) {
@@ -510,9 +550,49 @@
         }
 
         function deleteQR(id) {
-            if (confirm('Yakin hapus QR code ini?')) {
-                db.ref('qrcodes/' + id).remove();
+            deleteTargetId = id;
+            var qr = null;
+            for (var i = 0; i < qrData.length; i++) {
+                if (qrData[i].id === id) {
+                    qr = qrData[i];
+                    break;
+                }
             }
+            if (qr) {
+                document.getElementById('deleteQRName').textContent = 'QR Code: "' + qr.name + '" (' + qr.scans + ' scan)';
+                document.getElementById('deleteModal').classList.remove('hidden');
+            }
+        }
+
+        function hideDeleteModal() {
+            document.getElementById('deleteModal').classList.add('hidden');
+            deleteTargetId = null;
+        }
+
+        function confirmDelete() {
+            if (deleteTargetId) {
+                db.ref('qrcodes/' + deleteTargetId).remove().then(function() {
+                    hideDeleteModal();
+                    showNotification('✅ QR Code berhasil dihapus', 'success');
+                }).catch(function(error) {
+                    alert('Error: ' + error.message);
+                });
+            }
+        }
+
+        function showNotification(message, type) {
+            var notification = document.createElement('div');
+            notification.className = 'fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg text-white font-medium transform transition-all duration-300';
+            notification.style.backgroundColor = type === 'success' ? '#10b981' : '#ef4444';
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(function() {
+                notification.style.opacity = '0';
+                setTimeout(function() {
+                    document.body.removeChild(notification);
+                }, 200);
+            }, 2000);
         }
 
         function updateStats() {
