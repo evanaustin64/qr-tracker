@@ -567,33 +567,21 @@
             var imgData = ctx.getImageData(0, 0, size, size);
             var data = imgData.data;
             
-            var moduleSize = 8;
-            var modules = [];
-            var gridSize = 0;
-            
-            var sampleStep = Math.floor(size / 50);
-            for (var y = 0; y < size; y += sampleStep) {
-                var row = Math.floor(y / sampleStep);
-                for (var x = 0; x < size; x += sampleStep) {
-                    var col = Math.floor(x / sampleStep);
-                    var i = (y * size + x) * 4;
-                    
-                    if (data[i] < 128) {
-                        modules.push({x: col, y: row});
-                    }
-                    if (col > gridSize) gridSize = col;
-                }
-            }
-            gridSize += 1;
-
+            var detectedModules = detectQRModules(imgData, size);
+            var moduleSize = 10;
+            var gridSize = detectedModules.gridSize;
             var svgSize = gridSize * moduleSize;
-            var svg = '<?xml version="1.0" encoding="UTF-8"?>\n';
-            svg += '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="' + svgSize + '" height="' + svgSize + '" viewBox="0 0 ' + svgSize + ' ' + svgSize + '">\n';
-            svg += '<rect width="' + svgSize + '" height="' + svgSize + '" fill="#ffffff"/>\n';
-            svg += '<g fill="#000000">\n';
             
-            for (var i = 0; i < modules.length; i++) {
-                var m = modules[i];
+            var quietZone = 4;
+            var totalSize = (gridSize + quietZone * 2) * moduleSize;
+            
+            var svg = '<?xml version="1.0" encoding="UTF-8"?>\n';
+            svg += '<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="' + totalSize + '" height="' + totalSize + '" viewBox="0 0 ' + totalSize + ' ' + totalSize + '">\n';
+            svg += '<rect width="' + totalSize + '" height="' + totalSize + '" fill="#ffffff"/>\n';
+            svg += '<g fill="#000000" transform="translate(' + (quietZone * moduleSize) + ',' + (quietZone * moduleSize) + ')">\n';
+            
+            for (var i = 0; i < detectedModules.modules.length; i++) {
+                var m = detectedModules.modules[i];
                 svg += '<rect x="' + (m.x * moduleSize) + '" y="' + (m.y * moduleSize) + '" width="' + moduleSize + '" height="' + moduleSize + '"/>\n';
             }
             
@@ -610,6 +598,40 @@
             URL.revokeObjectURL(url);
             
             showNotification('✅ QR Code SVG berhasil didownload', 'success');
+        }
+
+        function detectQRModules(imgData, size) {
+            var data = imgData.data;
+            var threshold = 128;
+            
+            var estimatedModuleSize = Math.floor(size / 33);
+            var samplePoints = [];
+            
+            for (var y = estimatedModuleSize / 2; y < size; y += estimatedModuleSize) {
+                for (var x = estimatedModuleSize / 2; x < size; x += estimatedModuleSize) {
+                    var i = (Math.floor(y) * size + Math.floor(x)) * 4;
+                    var isBlack = data[i] < threshold;
+                    if (isBlack) {
+                        samplePoints.push({
+                            x: Math.floor(x / estimatedModuleSize),
+                            y: Math.floor(y / estimatedModuleSize)
+                        });
+                    }
+                }
+            }
+            
+            var maxX = 0, maxY = 0;
+            for (var i = 0; i < samplePoints.length; i++) {
+                if (samplePoints[i].x > maxX) maxX = samplePoints[i].x;
+                if (samplePoints[i].y > maxY) maxY = samplePoints[i].y;
+            }
+            
+            var gridSize = Math.max(maxX, maxY) + 1;
+            
+            return {
+                modules: samplePoints,
+                gridSize: gridSize
+            };
         }
 
         function deleteQR(id) {
