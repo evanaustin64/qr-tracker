@@ -541,9 +541,9 @@
             if (!qr) return;
             var canvas = document.querySelector('#modalQR canvas');
             if (canvas) {
-                var url = canvas.toDataURL('image/png');
+                var url = canvas.toDataURL('image/svg');
                 var link = document.createElement('a');
-                link.download = 'QR-' + qr.name + '.png';
+                link.download = 'QR-' + qr.name + '.svg';
                 link.href = url;
                 link.click();
             }
@@ -606,3 +606,4 @@
     </script>
 </body>
 </html>
+
