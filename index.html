@@ -8,10 +8,47 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 </head>
 <body class="bg-gray-50">
-    <div class="min-h-screen">
+    <!-- Login Screen -->
+    <div id="loginScreen" class="min-h-screen flex items-center justify-center px-4 bg-gradient-to-br from-blue-500 to-indigo-600">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
+            <div class="text-center mb-8">
+                <div class="text-6xl mb-4">🔐</div>
+                <h1 class="text-3xl font-bold text-gray-900 mb-2">Admin Login</h1>
+                <p class="text-gray-600">QR Scan Tracker Dashboard</p>
+            </div>
+            
+            <div class="space-y-4 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input type="email" id="loginEmail" placeholder="admin@example.com" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                    <input type="password" id="loginPassword" placeholder="••••••••" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                </div>
+            </div>
+            
+            <button onclick="handleLogin()" class="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 font-medium transition mb-4">
+                Masuk
+            </button>
+            
+            <div id="loginError" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm"></div>
+            
+            <div class="mt-6 pt-6 border-t border-gray-200">
+                <p class="text-xs text-gray-500 text-center">
+                    ⚠️ Akses terbatas untuk admin saja<br>
+                    Hubungi administrator untuk mendapatkan akses
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main App Screen -->
+    <div id="appScreen" class="hidden min-h-screen">
         <div class="bg-white shadow-sm border-b">
             <div class="max-w-6xl mx-auto px-4 py-6">
                 <div class="flex items-center justify-between">
@@ -20,9 +57,18 @@
                         <p class="text-sm text-gray-600">Real-time tracking dengan Firebase</p>
                         <p class="text-xs text-green-600 mt-1">✅ Firebase aktif</p>
                     </div>
-                    <button onclick="showCreateModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium">
-                        + Buat QR Baru
-                    </button>
+                    <div class="flex items-center gap-3">
+                        <div class="text-right mr-4">
+                            <p class="text-xs text-gray-500">Logged in as</p>
+                            <p class="text-sm font-medium text-gray-900" id="userEmail"></p>
+                        </div>
+                        <button onclick="showCreateModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium">
+                            + Buat QR Baru
+                        </button>
+                        <button onclick="handleLogout()" class="bg-red-100 text-red-600 px-4 py-2 rounded-lg hover:bg-red-200 font-medium">
+                            Logout
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -54,6 +100,7 @@
         </div>
     </div>
 
+    <!-- Modals (tetap sama) -->
     <div id="createModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
         <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
             <h2 class="text-2xl font-bold text-gray-900 mb-6">Buat QR Code Baru</h2>
@@ -83,7 +130,7 @@
                     </svg>
                 </div>
                 <h3 class="text-xl font-bold text-gray-900 mb-2">Hapus QR Code?</h3>
-                <p class="text-gray-600 text-sm" id="deleteQRName"></p>
+                <p class="text-sm text-gray-600" id="deleteQRName"></p>
                 <p class="text-red-600 text-sm font-medium mt-2">Data scan akan hilang permanen!</p>
             </div>
             <div class="flex gap-3">
@@ -182,11 +229,14 @@
 
         firebase.initializeApp(firebaseConfig);
         var db = firebase.database();
+        var auth = firebase.auth();
         var qrData = [];
         var currentId = null;
         var chartInstance = null;
         var deleteTargetId = null;
+        var currentUser = null;
 
+        // Check for tracking hash first
         var hash = window.location.hash;
         if (hash.startsWith('#track=')) {
             var trackId = hash.substring(7);
@@ -217,8 +267,90 @@
                 }
             });
         } else {
-            loadData();
+            // Check auth state
+            auth.onAuthStateChanged(function(user) {
+                if (user) {
+                    currentUser = user;
+                    document.getElementById('userEmail').textContent = user.email;
+                    showApp();
+                    loadData();
+                } else {
+                    showLogin();
+                }
+            });
         }
+
+        function showLogin() {
+            document.getElementById('loginScreen').classList.remove('hidden');
+            document.getElementById('appScreen').classList.add('hidden');
+        }
+
+        function showApp() {
+            document.getElementById('loginScreen').classList.add('hidden');
+            document.getElementById('appScreen').classList.remove('hidden');
+        }
+
+        function handleLogin() {
+            var email = document.getElementById('loginEmail').value.trim();
+            var password = document.getElementById('loginPassword').value;
+            var errorDiv = document.getElementById('loginError');
+            
+            if (!email || !password) {
+                errorDiv.textContent = '⚠️ Email dan password harus diisi!';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            errorDiv.classList.add('hidden');
+            
+            auth.signInWithEmailAndPassword(email, password)
+                .then(function(userCredential) {
+                    showNotification('✅ Login berhasil!', 'success');
+                })
+                .catch(function(error) {
+                    var message = 'Login gagal! ';
+                    if (error.code === 'auth/user-not-found') {
+                        message += 'Pengguna tidak ditemukan.';
+                    } else if (error.code === 'auth/wrong-password') {
+                        message += 'Password salah.';
+                    } else if (error.code === 'auth/invalid-email') {
+                        message += 'Format email tidak valid.';
+                    } else if (error.code === 'auth/too-many-requests') {
+                        message += 'Terlalu banyak percobaan. Coba lagi nanti.';
+                    } else {
+                        message += error.message;
+                    }
+                    errorDiv.textContent = '❌ ' + message;
+                    errorDiv.classList.remove('hidden');
+                });
+        }
+
+        function handleLogout() {
+            if (confirm('Yakin ingin logout?')) {
+                auth.signOut().then(function() {
+                    showNotification('✅ Logout berhasil!', 'success');
+                    showLogin();
+                });
+            }
+        }
+
+        // Enter key untuk login
+        document.addEventListener('DOMContentLoaded', function() {
+            var loginEmail = document.getElementById('loginEmail');
+            var loginPassword = document.getElementById('loginPassword');
+            
+            if (loginEmail) {
+                loginEmail.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') handleLogin();
+                });
+            }
+            
+            if (loginPassword) {
+                loginPassword.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') handleLogin();
+                });
+            }
+        });
 
         function loadData() {
             db.ref('qrcodes').on('value', function(snapshot) {
@@ -272,7 +404,7 @@
             };
             db.ref('qrcodes/' + id).set(newQR).then(function() {
                 hideCreateModal();
-                alert('✅ QR Code berhasil dibuat!');
+                showNotification('✅ QR Code berhasil dibuat!', 'success');
             });
         }
 
